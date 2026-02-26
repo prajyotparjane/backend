@@ -1,9 +1,26 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = "mysql+pymysql://root:Root123@localhost:3306/crop_recommendation_db"
+# Get DATABASE_URL from Render environment variable
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
+# Safety check (important)
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
 
+# Create engine
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
+
+# Session factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+# Base model class
 Base = declarative_base()
