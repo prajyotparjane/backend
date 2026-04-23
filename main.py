@@ -10,7 +10,8 @@ import bcrypt
 import json
 
 from utils.fertilizer_calc import fertilizer_recommendation
-from database import SessionLocal
+from database import SessionLocal, Base, engine
+from models.sensor_data import SensorData
 from models.user import User
 from models.prediction_history import PredictionHistory
 
@@ -76,6 +77,7 @@ season_df = crop_df[["Crop","Season"]]
 
 # ================= APP =================
 app = FastAPI()
+Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
@@ -115,6 +117,14 @@ class LoginInput(BaseModel):
     email: str
     password: str
 
+
+class IoTInput(BaseModel):
+    N: float
+    P: float
+    K: float
+    Temperature: float
+    Humidity: float
+    pH: float
 
 # ================= REGISTER =================
 @app.post("/register")
@@ -265,3 +275,40 @@ def get_history(
         "pH":r.pH,
         "result":json.loads(r.result)
     } for r in records]
+
+
+# ================= IOT =================
+
+@app.post("/iot/data")
+def receive_iot_data(data: IoTInput, db: Session = Depends(get_db)):
+    new_data = SensorData(
+        N=data.N,
+        P=data.P,
+        K=data.K,
+        Temperature=data.Temperature,
+        Humidity=data.Humidity,
+        pH=data.pH
+    )
+    db.add(new_data)
+    db.commit()
+
+    return {"message": "IoT data stored"}
+
+
+@app.get("/iot/latest")
+def get_latest_iot_data(db: Session = Depends(get_db)):
+    latest = db.query(SensorData)\
+        .order_by(SensorData.id.desc())\
+        .first()
+
+    if not latest:
+        raise HTTPException(status_code=404, detail="No IoT data found")
+
+    return {
+        "N": latest.N,
+        "P": latest.P,
+        "K": latest.K,
+        "Temperature": latest.Temperature,
+        "Humidity": latest.Humidity,
+        "pH": latest.pH
+    }
